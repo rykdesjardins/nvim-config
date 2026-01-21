@@ -10,7 +10,7 @@ vim.g.mapleader = "#"
 vim.opt.clipboard = "unnamedplus"
 
 if vim.g.neovide then
-  vim.o.guifont = "Comic Mono:h12"
+  vim.o.guifont = "Comic Mono:h11"
   vim.g.neovide_padding_top = 0
   vim.g.neovide_padding_bottom = 0
   vim.g.neovide_padding_left = 10
@@ -54,13 +54,7 @@ end, { noremap = true, silent = true })
 -- Syntax highlighting
 vim.cmd("syntax on")
 
--- Autocmd for typescriptreact files
-vim.api.nvim_create_autocmd({ "BufNewFile", "BufRead" }, {
-  pattern = { "*.tsx", "*.jsx" },
-  command = "set filetype=typescript.tsx",
-})
-
--- Global variables, might remove since not using nerdtree anymore
+-- Global variables (legacy, kept for compatibility)
 vim.g.javascript_plugin_flow = 1
 vim.g.webdevicons_enable = 1
 vim.g.webdevicons_enable_nerdtree = 1
@@ -92,56 +86,26 @@ require("lazy").setup({
   { "w0ng/vim-hybrid" },
   { "catppuccin/nvim", name = "catppuccin" },
   { "rainglow/vim" },
-  { "nvim-lua/plenary.nvim" }, -- Required by none-ls
-  { "nvimtools/none-ls.nvim", 
-    dependencies = { "nvim-lua/plenary.nvim" },
-    config = function()
-    local null_ls = require("null-ls")
-    null_ls.setup({
-      sources = {
-        null_ls.builtins.formatting.biome,
-      },
-      on_attach = function(client, bufnr)
-        -- Format on save for null-ls (Biome)
-        if client.supports_method("textDocument/formatting") then
-          local augroup = vim.api.nvim_create_augroup("LspFormatting", { clear = true })
-          vim.api.nvim_clear_autocmds({ group = augroup, buffer = bufnr })
-          vim.api.nvim_create_autocmd("BufWritePre", {
-            group = augroup,
-            buffer = bufnr,
-            callback = function()
-              vim.lsp.buf.format({ bufnr = bufnr })
-            end,
-          })
-        end
-      end,
-    })
-  end },
 
-  -- Language syntax / highlighting
-  { "pangloss/vim-javascript" },
-  { "leafgarland/typescript-vim" },
-  { "maxmellon/vim-jsx-pretty" },
-  { "peitalin/vim-jsx-typescript" },
+  -- GraphQL syntax (not covered by Treesitter in all cases)
   { "jparise/vim-graphql" },
 
   -- Git integration
-  { "lewis6991/gitsigns.nvim" },
+  { "lewis6991/gitsigns.nvim", config = true },
 
   -- Statusline / UI
   { "itchyny/lightline.vim" },
-  { "romgrk/barbar.nvim" },  -- Bufferline alternative
+  { "romgrk/barbar.nvim" },
 
   -- Editorconfig
   { "editorconfig/editorconfig-vim" },
 
-  -- Icons and sidebar file explorer (nvim-tree replaced NERDTree)
+  -- Icons and sidebar file explorer
   {
     "nvim-tree/nvim-tree.lua",
     dependencies = { "nvim-tree/nvim-web-devicons" },
     config = function()
       require("nvim-tree").setup({
-        -- Example config; adjust as you wish:
         git = {
           enable = true,
         },
@@ -169,27 +133,124 @@ require("lazy").setup({
       vim.keymap.set("n", "<C-n>", ":NvimTreeToggle<CR>", { noremap = true, silent = true })
     end,
   },
-  { "nvim-tree/nvim-web-devicons", opts = {} }, 
+  { "nvim-tree/nvim-web-devicons", opts = {} },
 
-  -- Commenting
-  { "scrooloose/nerdcommenter" },
+  -- Modern commenting
+  {
+    "numToStr/Comment.nvim",
+    config = function()
+      require("Comment").setup()
+    end,
+  },
+
+  -- Auto-close brackets and quotes
+  {
+    "windwp/nvim-autopairs",
+    event = "InsertEnter",
+    config = function()
+      require("nvim-autopairs").setup({})
+      -- Integrate with nvim-cmp
+      local cmp_autopairs = require("nvim-autopairs.completion.cmp")
+      local cmp = require("cmp")
+      cmp.event:on("confirm_done", cmp_autopairs.on_confirm_done())
+    end,
+  },
+
+  -- Visual indentation guides
+  {
+    "lukas-reineke/indent-blankline.nvim",
+    main = "ibl",
+    config = function()
+      require("ibl").setup({
+        indent = {
+          char = "│",
+        },
+        scope = {
+          enabled = false,
+        },
+      })
+    end,
+  },
 
   -- Utility
-  { "tpope/vim-eunuch" }, -- :Rename, :Delete, etc.
+  { "tpope/vim-eunuch" },
 
   -- GitHub Copilot
   { "github/copilot.vim" },
 
-  -- Native LSP, completion, formatting
+  -- Native LSP, completion
   { "neovim/nvim-lspconfig" },
   { "williamboman/mason.nvim", config = true },
   { "williamboman/mason-lspconfig.nvim", config = true },
   { "hrsh7th/nvim-cmp" },
   { "hrsh7th/cmp-nvim-lsp" },
-  { "jose-elias-alvarez/null-ls.nvim" },
 
-  -- Treesitter (highly recommended)
-  { "nvim-treesitter/nvim-treesitter", build = ":TSUpdate" },
+  -- Treesitter for modern syntax highlighting
+  {
+    "nvim-treesitter/nvim-treesitter",
+    build = ":TSUpdate",
+    config = function()
+      require("nvim-treesitter.configs").setup({
+        ensure_installed = {
+          "javascript",
+          "typescript",
+          "tsx",
+          "json",
+          "css",
+          "html",
+          "lua",
+          "vim",
+          "vimdoc",
+          "graphql",
+        },
+        highlight = {
+          enable = true,
+          additional_vim_regex_highlighting = false,
+        },
+        indent = {
+          enable = true,
+        },
+        incremental_selection = {
+          enable = true,
+          keymaps = {
+            init_selection = "<CR>",
+            node_incremental = "<CR>",
+            scope_incremental = "<S-CR>",
+            node_decremental = "<BS>",
+          },
+        },
+      })
+    end,
+  },
+
+  -- Notification popup with animations
+  {
+    "rcarriga/nvim-notify",
+    config = function()
+      local notify = require("notify")
+      notify.setup({
+        stages = "slide",  -- Animation style: "fade", "slide", "fade_in_slide_out", "static"
+        timeout = 3000,    -- Default timeout in milliseconds
+        background_colour = "#000000",
+        icons = {
+          ERROR = "",
+          WARN = "",
+          INFO = "",
+          DEBUG = "",
+          TRACE = "✎",
+        },
+        render = "default", -- Render style: "default", "minimal", "simple", "compact"
+        max_width = 50,
+        max_height = 10,
+        minimum_width = 50,
+        top_down = true,   -- Notifications start from top
+      })
+      
+      -- Set nvim-notify as the default notification handler
+      vim.notify = notify
+    end,
+  },
+
   {
     "NickvanDyke/opencode.nvim",
     dependencies = {
@@ -255,15 +316,50 @@ cmp.setup({
 local keymap = vim.keymap.set
 local opts = { noremap = true, silent = true }
 
+-- Setup Mason first
+require("mason").setup()
+require("mason-lspconfig").setup({
+  ensure_installed = { "ts_ls", "biome" },
+})
+
+-- Get capabilities from nvim-cmp
 local capabilities = require("cmp_nvim_lsp").default_capabilities()
 
-local lspconfig = require("lspconfig") 
-lspconfig["ts_ls"].setup({})
+-- Format on save autocmd helper
+local function setup_format_on_save(client, bufnr)
+  if client.supports_method("textDocument/formatting") then
+    local augroup = vim.api.nvim_create_augroup("LspFormatting", { clear = false })
+    vim.api.nvim_clear_autocmds({ group = augroup, buffer = bufnr })
+    vim.api.nvim_create_autocmd("BufWritePre", {
+      group = augroup,
+      buffer = bufnr,
+      callback = function()
+        vim.lsp.buf.format({ bufnr = bufnr, timeout_ms = 2000 })
+      end,
+    })
+  end
+end
 
-require("mason").setup()
---require("mason-lspconfig").setup({
---  ensure_installed = { "typescript-language-server" },
---})
+-- Configure LSP servers
+local lspconfig = require("lspconfig")
+
+-- TypeScript Language Server
+lspconfig.ts_ls.setup({
+  capabilities = capabilities,
+  on_attach = function(client, bufnr)
+    -- Disable ts_ls formatting in favor of Biome
+    client.server_capabilities.documentFormattingProvider = false
+    client.server_capabilities.documentRangeFormattingProvider = false
+  end,
+})
+
+-- Biome LSP (formatter + linter)
+lspconfig.biome.setup({
+  capabilities = capabilities,
+  on_attach = function(client, bufnr)
+    setup_format_on_save(client, bufnr)
+  end,
+})
 
 -- Native LSP bindings replacing coc mappings
 keymap("n", "gd", vim.lsp.buf.definition, opts)
@@ -278,24 +374,90 @@ end, opts)
 keymap("n", "<leader>b", "<cmd>Bookmark<cr>", opts)
 
 -- Snacks picker bindings
-keymap("n", "<leader>fr", function()
-  require("snacks").picker.resume()
-end, opts)
-keymap("n", "<leader>fb", function()
-  require("snacks").picker.files({ cwd = vim.fn.expand("%:p:h") })
-end, opts)
-keymap("n", "<leader>fh", function()
-  require("snacks").picker.help()
-end, opts)
+-- File pickers
 keymap("n", "<Leader>ff", function()
   require("snacks").picker.files()
-end, { noremap = true, silent = true })
+end, opts)
+keymap("n", "<leader>fb", function()
+  require("snacks").picker.buffers()
+end, opts)
+keymap("n", "<leader>fr", function()
+  require("snacks").picker.recent()
+end, opts)
+
+-- Grep pickers
 keymap("n", "<leader>fg", function()
   require("snacks").picker.grep()
-end, { noremap = true, silent = true })
+end, opts)
+keymap("n", "<leader>fw", function()
+  require("snacks").picker.grep_word()
+end, opts)
+
+-- LSP & Code Navigation
+keymap("n", "<leader>ss", function()
+  require("snacks").picker.lsp_symbols()
+end, opts)
+keymap("n", "<leader>sS", function()
+  require("snacks").picker.lsp_workspace_symbols()
+end, opts)
+keymap("n", "<leader>sd", function()
+  require("snacks").picker.diagnostics()
+end, opts)
+keymap("n", "<leader>sD", function()
+  require("snacks").picker.diagnostics_buffer()
+end, opts)
+
+-- Useful utilities
+keymap("n", "<leader>sr", function()
+  require("snacks").picker.resume()
+end, opts)
+keymap("n", "<leader>su", function()
+  require("snacks").picker.undo()
+end, opts)
+keymap("n", "<leader>sh", function()
+  require("snacks").picker.help()
+end, opts)
+keymap("n", "<leader>sk", function()
+  require("snacks").picker.keymaps()
+end, opts)
+keymap("n", "<leader>sm", function()
+  require("snacks").picker.marks()
+end, opts)
+keymap("n", "<leader>sc", function()
+  require("snacks").picker.commands()
+end, opts)
+keymap("n", "<leader>sj", function()
+  require("snacks").picker.jumps()
+end, opts)
+keymap("n", "<leader>sn", function()
+  require("snacks").picker.notifications()
+end, opts)
+keymap("n", "<leader>sq", function()
+  require("snacks").picker.qflist()
+end, opts)
+keymap("n", "<leader>sl", function()
+  require("snacks").picker.loclist()
+end, opts)
+
+-- Git pickers
 keymap("n", "<leader>fc", function()
   require("snacks").picker.git_status()
-end, { noremap = true, silent = true })
+end, opts)
+keymap("n", "<leader>gb", function()
+  require("snacks").picker.git_branches()
+end, opts)
+keymap("n", "<leader>gl", function()
+  require("snacks").picker.git_log()
+end, opts)
+keymap("n", "<leader>gL", function()
+  require("snacks").picker.git_log_line()
+end, opts)
+keymap("n", "<leader>gf", function()
+  require("snacks").picker.git_log_file()
+end, opts)
+keymap("n", "<leader>gd", function()
+  require("snacks").picker.git_diff()
+end, opts)
 
 -- Buffer navigation (barbar)
 keymap("n", "<A-,>", "<Cmd>BufferPrevious<CR>", opts)
