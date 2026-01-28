@@ -362,7 +362,30 @@ lspconfig.biome.setup({
 })
 
 -- Native LSP bindings replacing coc mappings
-keymap("n", "gd", vim.lsp.buf.definition, opts)
+keymap("n", "gd", function()
+  require("snacks").picker.lsp_definitions({
+    unique_lines = true,
+    transform = function(item, ctx)
+      local file = item.file or item.text
+      if not file or not item.pos then
+        return
+      end
+      ctx.meta.seen = ctx.meta.seen or {}
+      local end_pos = item.end_pos or { 0, 0 }
+      local key = table.concat({
+        file,
+        item.pos[1],
+        item.pos[2],
+        end_pos[1],
+        end_pos[2],
+      }, ":")
+      if ctx.meta.seen[key] then
+        return false
+      end
+      ctx.meta.seen[key] = true
+    end,
+  })
+end, opts)
 keymap("n", "gt", vim.lsp.buf.type_definition, opts)
 keymap("n", "gi", vim.lsp.buf.implementation, opts)
 -- keymap("n", "gr", vim.lsp.buf.references, opts)
@@ -538,5 +561,3 @@ vim.keymap.set("n", "<leader>ch", function()
     end
   end
 end, { noremap = true, silent = true })
-
-
