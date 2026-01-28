@@ -342,10 +342,57 @@ end
 
 -- Configure LSP servers
 local lspconfig = require("lspconfig")
+local lsp_util = require("lspconfig.util")
+
+local function is_workspace_root(package_json)
+  local ok, lines = pcall(vim.fn.readfile, package_json)
+  if not ok then
+    return false
+  end
+  local ok_decode, decoded = pcall(vim.fn.json_decode, table.concat(lines, "\n"))
+  if not ok_decode or type(decoded) ~= "table" then
+    return false
+  end
+  return decoded.workspaces ~= nil
+end
 
 -- TypeScript Language Server
 lspconfig.ts_ls.setup({
   capabilities = capabilities,
+  root_dir = function(fname)
+    local root = lsp_util.root_pattern("tsconfig.json", "jsconfig.json")(fname)
+    if root then
+      return root
+    end
+
+    local pkg = lsp_util.root_pattern("package.json")(fname)
+    if pkg and not is_workspace_root(pkg) then
+      return lsp_util.path.dirname(pkg)
+    end
+
+    return lsp_util.path.dirname(fname)
+  end,
+  single_file_support = true,
+  init_options = {
+    hostInfo = "neovim",
+    maxTsServerMemory = 3072,
+    preferences = {
+      includeCompletionsForModuleExports = false,
+      includeCompletionsForImportStatements = true,
+    },
+  },
+  settings = {
+    typescript = {
+      tsserver = {
+        enableProjectDiagnostics = false,
+      },
+    },
+    javascript = {
+      tsserver = {
+        enableProjectDiagnostics = false,
+      },
+    },
+  },
   on_attach = function(client, bufnr)
     -- Disable ts_ls formatting in favor of Biome
     client.server_capabilities.documentFormattingProvider = false
@@ -358,6 +405,26 @@ lspconfig.biome.setup({
   capabilities = capabilities,
   on_attach = function(client, bufnr)
     setup_format_on_save(client, bufnr)
+  end,
+})
+
+local ts_ls_warmed = false
+local function warm_ts_ls()
+  if ts_ls_warmed then
+    return
+  end
+  ts_ls_warmed = true
+
+  local bufnr = vim.api.nvim_create_buf(false, true)
+  vim.bo[bufnr].buftype = "nofile"
+  vim.bo[bufnr].bufhidden = "hide"
+  vim.bo[bufnr].filetype = "typescript"
+  require("lspconfig").ts_ls.manager.try_add(bufnr)
+end
+
+vim.api.nvim_create_autocmd("VimEnter", {
+  callback = function()
+    vim.defer_fn(warm_ts_ls, 50)
   end,
 })
 
