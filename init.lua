@@ -36,7 +36,8 @@ vim.opt.shiftwidth = 2
 vim.opt.expandtab = true
 vim.opt.wrap = false
 vim.opt.number = true
-vim.opt.laststatus = 2
+vim.opt.laststatus = 3
+vim.opt.showmode = false
 
 vim.keymap.set({"n", "v"}, "<leader>a", vim.lsp.buf.code_action, { noremap = true, silent = true })
 vim.keymap.set("n", "<leader>ac", vim.lsp.buf.code_action, { noremap = true, silent = true })
@@ -260,6 +261,13 @@ require("lazy").setup({
       { "folke/snacks.nvim", opts = { 
         input = {}, 
         picker = {
+          layout = {
+            preset = "default",
+            layout = {
+              width = 0.9,
+              height = 0.9,
+            },
+          },
           win = {
             input = {
               keys = {
