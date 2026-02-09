@@ -348,6 +348,7 @@ local function setup_format_on_save(client, bufnr)
   end
 end
 
+
 -- Configure LSP servers
 local lspconfig = require("lspconfig")
 local lsp_util = require("lspconfig.util")
@@ -411,10 +412,41 @@ lspconfig.ts_ls.setup({
 -- Biome LSP (formatter + linter)
 lspconfig.biome.setup({
   capabilities = capabilities,
+  root_dir = lsp_util.root_pattern("biome.json", "biome.jsonc", "package.json"),
   on_attach = function(client, bufnr)
     setup_format_on_save(client, bufnr)
   end,
 })
+
+local function run_biome_lint()
+  local file = vim.api.nvim_buf_get_name(0)
+  if file == "" then
+    vim.notify("Biome lint: no file name for current buffer", vim.log.levels.WARN)
+    return
+  end
+
+  local root = lsp_util.root_pattern("biome.json", "biome.jsonc", "package.json")(file)
+  root = root or vim.fn.fnamemodify(file, ":h")
+  local local_biome = lsp_util.path.join(root, "node_modules", ".bin", "biome")
+  local biome_bin = vim.loop.fs_stat(local_biome) and local_biome or "biome"
+
+  vim.system({ biome_bin, "check", file, "--write" }, { text = true, cwd = root }, function(result)
+    vim.schedule(function()
+      if result.code == 0 then
+        vim.notify("Biome lint: clean", vim.log.levels.INFO)
+        return
+      end
+
+      local output = (result.stdout or "") .. (result.stderr or "")
+      if output == "" then
+        output = "Biome lint failed"
+      end
+      vim.notify(output, vim.log.levels.ERROR)
+    end)
+  end)
+end
+
+vim.api.nvim_create_user_command("Lint", run_biome_lint, {})
 
 local ts_ls_warmed = false
 local function warm_ts_ls()
@@ -427,7 +459,7 @@ local function warm_ts_ls()
   vim.bo[bufnr].buftype = "nofile"
   vim.bo[bufnr].bufhidden = "hide"
   vim.bo[bufnr].filetype = "typescript"
-  require("lspconfig").ts_ls.manager.try_add(bufnr)
+  require("lspconfig").ts_ls.manager:try_add(bufnr)
 end
 
 vim.api.nvim_create_autocmd("VimEnter", {
@@ -467,6 +499,8 @@ keymap("n", "gi", vim.lsp.buf.implementation, opts)
 keymap("n", "gr", function() 
   require("snacks").picker.lsp_references() 
 end, opts)
+
+keymap("n", "<leader>l", "<cmd>Lint<cr>", opts)
 
 -- Bookmark command (assuming you have a Bookmark plugin configured)
 keymap("n", "<leader>b", "<cmd>Bookmark<cr>", opts)
