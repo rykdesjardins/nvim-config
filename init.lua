@@ -201,9 +201,10 @@ require("lazy").setup({
           "html",
           "lua",
           "vim",
-          "vimdoc",
-          "graphql",
-        },
+    "vimdoc",
+    "graphql",
+    "rust",
+  },
         highlight = {
           enable = true,
           additional_vim_regex_highlighting = false,
@@ -327,7 +328,7 @@ local opts = { noremap = true, silent = true }
 -- Setup Mason first
 require("mason").setup()
 require("mason-lspconfig").setup({
-  ensure_installed = { "ts_ls", "biome" },
+  ensure_installed = { "ts_ls", "biome", "rust_analyzer" },
 })
 
 -- Get capabilities from nvim-cmp
@@ -416,6 +417,33 @@ lspconfig.biome.setup({
   on_attach = function(client, bufnr)
     setup_format_on_save(client, bufnr)
   end,
+})
+
+-- Rust Analyzer
+lspconfig.rust_analyzer.setup({
+  capabilities = capabilities,
+  root_dir = lsp_util.root_pattern("Cargo.toml", "rust-project.json"),
+  on_attach = function(client, bufnr)
+    setup_format_on_save(client, bufnr)
+  end,
+  settings = {
+    ["rust-analyzer"] = {
+      cargo = {
+        allFeatures = true,
+        extraEnv = {
+          RUSTFLAGS = "-Zmacro-backtrace",
+        },
+      },
+      checkOnSave = true,
+      checkOnSaveCommand = "clippy",
+      procMacro = {
+        enable = true,
+      },
+      rustfmt = {
+        extraArgs = { "+nightly" },
+      },
+    },
+  },
 })
 
 local function run_biome_lint()
