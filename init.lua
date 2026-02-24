@@ -4,7 +4,7 @@
 -- Requires a patched version of Comic Mono from nerd fonts :
 --   https://github.com/ryanoasis/nerd-fonts/tree/master/patched-fonts/ComicShannsMono
 --
--- Otherwise requires the new typescript server (ts_ls) and biome installed via npm.
+-- Otherwise requires the new typescript server (vtsls) and biome installed via npm.
 
 vim.g.mapleader = "#"
 vim.opt.clipboard = "unnamedplus"
@@ -328,7 +328,7 @@ local opts = { noremap = true, silent = true }
 -- Setup Mason first
 require("mason").setup()
 require("mason-lspconfig").setup({
-  ensure_installed = { "ts_ls", "biome", "rust_analyzer" },
+  ensure_installed = { "vtsls", "biome", "rust_analyzer" },
 })
 
 -- Get capabilities from nvim-cmp
@@ -367,7 +367,7 @@ local function is_workspace_root(package_json)
 end
 
 -- TypeScript Language Server
-lspconfig.ts_ls.setup({
+lspconfig.vtsls.setup({
   capabilities = capabilities,
   root_dir = function(fname)
     local root = lsp_util.root_pattern("tsconfig.json", "jsconfig.json")(fname)
@@ -404,7 +404,7 @@ lspconfig.ts_ls.setup({
     },
   },
   on_attach = function(client, bufnr)
-    -- Disable ts_ls formatting in favor of Biome
+    -- Disable vtsls formatting in favor of Biome
     client.server_capabilities.documentFormattingProvider = false
     client.server_capabilities.documentRangeFormattingProvider = false
   end,
@@ -476,23 +476,23 @@ end
 
 vim.api.nvim_create_user_command("Lint", run_biome_lint, {})
 
-local ts_ls_warmed = false
-local function warm_ts_ls()
-  if ts_ls_warmed then
+local vtsls_warmed = false
+local function warm_vtsls()
+  if vtsls_warmed then
     return
   end
-  ts_ls_warmed = true
+  vtsls_warmed = true
 
   local bufnr = vim.api.nvim_create_buf(false, true)
   vim.bo[bufnr].buftype = "nofile"
   vim.bo[bufnr].bufhidden = "hide"
   vim.bo[bufnr].filetype = "typescript"
-  require("lspconfig").ts_ls.manager:try_add(bufnr)
+  require("lspconfig").vtsls.manager:try_add(bufnr)
 end
 
 vim.api.nvim_create_autocmd("VimEnter", {
   callback = function()
-    vim.defer_fn(warm_ts_ls, 50)
+    vim.defer_fn(warm_vtsls, 50)
   end,
 })
 
