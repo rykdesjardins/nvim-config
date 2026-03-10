@@ -201,10 +201,10 @@ require("lazy").setup({
           "html",
           "lua",
           "vim",
-    "vimdoc",
-    "graphql",
-    "rust",
-  },
+          "vimdoc",
+          "graphql",
+          "rust",
+        },
         highlight = {
           enable = true,
           additional_vim_regex_highlighting = false,
@@ -350,102 +350,53 @@ local function setup_format_on_save(client, bufnr)
 end
 
 
--- Configure LSP servers
-local lspconfig = require("lspconfig")
-local lsp_util = require("lspconfig.util")
+--------------------------------------------------------------------------------
+-- LSP CONFIGURATION (Nvim 0.11/0.12 + lspconfig)
+--------------------------------------------------------------------------------
 
-local function is_workspace_root(package_json)
-  local ok, lines = pcall(vim.fn.readfile, package_json)
-  if not ok then
-    return false
-  end
-  local ok_decode, decoded = pcall(vim.fn.json_decode, table.concat(lines, "\n"))
-  if not ok_decode or type(decoded) ~= "table" then
-    return false
-  end
-  return decoded.workspaces ~= nil
+-- Require lspconfig so it registers its default configurations into vim.lsp.config
+require("lspconfig")
+
+-- 1. TypeScript Language Server (VTSLS)
+local vtsls = vim.lsp.config.vtsls
+vtsls.capabilities = capabilities
+vtsls.settings = {
+  typescript = { tsserver = { enableProjectDiagnostics = false } },
+  javascript = { tsserver = { enableProjectDiagnostics = false } },
+}
+vtsls.on_attach = function(client, bufnr)
+  -- Disable vtsls formatting in favor of Biome
+  client.server_capabilities.documentFormattingProvider = false
+  client.server_capabilities.documentRangeFormattingProvider = false
 end
+vim.lsp.enable("vtsls")
 
--- TypeScript Language Server
-lspconfig.vtsls.setup({
-  capabilities = capabilities,
-  root_dir = function(fname)
-    local root = lsp_util.root_pattern("tsconfig.json", "jsconfig.json")(fname)
-    if root then
-      return root
-    end
 
-    local pkg = lsp_util.root_pattern("package.json")(fname)
-    if pkg and not is_workspace_root(pkg) then
-      return lsp_util.path.dirname(pkg)
-    end
+-- 2. Biome LSP (formatter + linter)
+local biome = vim.lsp.config.biome
+biome.capabilities = capabilities
+biome.on_attach = function(client, bufnr)
+  setup_format_on_save(client, bufnr)
+end
+vim.lsp.enable("biome")
 
-    return lsp_util.path.dirname(fname)
-  end,
-  single_file_support = true,
-  init_options = {
-    hostInfo = "neovim",
-    maxTsServerMemory = 3072,
-    preferences = {
-      includeCompletionsForModuleExports = false,
-      includeCompletionsForImportStatements = true,
-    },
+
+-- 3. Rust Analyzer
+local rust_analyzer = vim.lsp.config.rust_analyzer
+rust_analyzer.capabilities = capabilities
+rust_analyzer.on_attach = function(client, bufnr)
+  setup_format_on_save(client, bufnr)
+end
+rust_analyzer.settings = {
+  ["rust-analyzer"] = {
+    cargo = { allFeatures = true },
+    check = { command = "clippy" },
+    procMacro = { enable = true },
   },
-  settings = {
-    typescript = {
-      tsserver = {
-        enableProjectDiagnostics = false,
-      },
-    },
-    javascript = {
-      tsserver = {
-        enableProjectDiagnostics = false,
-      },
-    },
-  },
-  on_attach = function(client, bufnr)
-    -- Disable vtsls formatting in favor of Biome
-    client.server_capabilities.documentFormattingProvider = false
-    client.server_capabilities.documentRangeFormattingProvider = false
-  end,
-})
+}
+vim.lsp.enable("rust_analyzer")
 
--- Biome LSP (formatter + linter)
-lspconfig.biome.setup({
-  capabilities = capabilities,
-  root_dir = lsp_util.root_pattern("biome.json", "biome.jsonc", "package.json"),
-  on_attach = function(client, bufnr)
-    setup_format_on_save(client, bufnr)
-  end,
-})
-
--- Rust Analyzer
-lspconfig.rust_analyzer.setup({
-  capabilities = capabilities,
-  root_dir = lsp_util.root_pattern("Cargo.toml", "rust-project.json"),
-  on_attach = function(client, bufnr)
-    setup_format_on_save(client, bufnr)
-  end,
-  settings = {
-    ["rust-analyzer"] = {
-      cargo = {
-        allFeatures = true,
-        extraEnv = {
-          RUSTFLAGS = "-Zmacro-backtrace",
-        },
-      },
-      checkOnSave = true,
-      checkOnSaveCommand = "clippy",
-      procMacro = {
-        enable = true,
-      },
-      rustfmt = {
-        extraArgs = { "+nightly" },
-      },
-    },
-  },
-})
-
+-- Custom Biome Lint command
 local function run_biome_lint()
   local file = vim.api.nvim_buf_get_name(0)
   if file == "" then
@@ -453,10 +404,9 @@ local function run_biome_lint()
     return
   end
 
-  local root = lsp_util.root_pattern("biome.json", "biome.jsonc", "package.json")(file)
-  root = root or vim.fn.fnamemodify(file, ":h")
-  local local_biome = lsp_util.path.join(root, "node_modules", ".bin", "biome")
-  local biome_bin = vim.loop.fs_stat(local_biome) and local_biome or "biome"
+  local root = vim.fs.root(file, { "biome.json", "biome.jsonc", "package.json" }) or vim.fn.fnamemodify(file, ":h")
+  local local_biome = root .. "/node_modules/.bin/biome"
+  local biome_bin = vim.uv.fs_stat(local_biome) and local_biome or "biome"
 
   vim.system({ biome_bin, "check", file, "--write" }, { text = true, cwd = root }, function(result)
     vim.schedule(function()
@@ -466,9 +416,7 @@ local function run_biome_lint()
       end
 
       local output = (result.stdout or "") .. (result.stderr or "")
-      if output == "" then
-        output = "Biome lint failed"
-      end
+      if output == "" then output = "Biome lint failed" end
       vim.notify(output, vim.log.levels.ERROR)
     end)
   end)
@@ -476,18 +424,16 @@ end
 
 vim.api.nvim_create_user_command("Lint", run_biome_lint, {})
 
+-- VTSLS warmer (simplified for native LSP)
 local vtsls_warmed = false
 local function warm_vtsls()
-  if vtsls_warmed then
-    return
-  end
+  if vtsls_warmed then return end
   vtsls_warmed = true
 
   local bufnr = vim.api.nvim_create_buf(false, true)
   vim.bo[bufnr].buftype = "nofile"
   vim.bo[bufnr].bufhidden = "hide"
   vim.bo[bufnr].filetype = "typescript"
-  require("lspconfig").vtsls.manager:try_add(bufnr)
 end
 
 vim.api.nvim_create_autocmd("VimEnter", {
@@ -495,6 +441,10 @@ vim.api.nvim_create_autocmd("VimEnter", {
     vim.defer_fn(warm_vtsls, 50)
   end,
 })
+
+--------------------------------------------------------------------------------
+-- KEYMAPS AND UI
+--------------------------------------------------------------------------------
 
 -- Native LSP bindings replacing coc mappings
 keymap("n", "gd", function()
@@ -523,7 +473,6 @@ keymap("n", "gd", function()
 end, opts)
 keymap("n", "gt", vim.lsp.buf.type_definition, opts)
 keymap("n", "gi", vim.lsp.buf.implementation, opts)
--- keymap("n", "gr", vim.lsp.buf.references, opts)
 keymap("n", "gr", function() 
   require("snacks").picker.lsp_references() 
 end, opts)
@@ -687,9 +636,6 @@ vim.api.nvim_create_autocmd("ColorScheme", {
     vim.api.nvim_set_hl(0, "SnacksInputNormal", { bg = "#1A1922" })
   end,
 })
-
-
-
 
 vim.keymap.set("n", "<leader>ch", function()
   for _, win in pairs(vim.api.nvim_tabpage_list_wins(0)) do
