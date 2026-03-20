@@ -204,6 +204,8 @@ require("lazy").setup({
           "vimdoc",
           "graphql",
           "rust",
+          "c_sharp",
+          "gdscript",
         },
         highlight = {
           enable = true,
@@ -328,7 +330,7 @@ local opts = { noremap = true, silent = true }
 -- Setup Mason first
 require("mason").setup()
 require("mason-lspconfig").setup({
-  ensure_installed = { "vtsls", "biome", "rust_analyzer" },
+  ensure_installed = { "vtsls", "biome", "rust_analyzer", "omnisharp" },
 })
 
 -- Get capabilities from nvim-cmp
@@ -395,6 +397,29 @@ rust_analyzer.settings = {
   },
 }
 vim.lsp.enable("rust_analyzer")
+
+
+-- 4. OmniSharp (C#)
+local omnisharp = vim.lsp.config.omnisharp
+omnisharp.capabilities = capabilities
+omnisharp.on_attach = function(client, bufnr)
+  setup_format_on_save(client, bufnr)
+end
+vim.lsp.enable("omnisharp")
+
+
+-- 5. Godot GDScript
+local gdscript = vim.lsp.config.gdscript
+gdscript.capabilities = capabilities
+gdscript.cmd = { "godot", "--headless", "--language-server" }
+gdscript.filetypes = { "gd", "gdscript", "gdshader", "gdshaderinc" }
+gdscript.root_dir = function(fname)
+  return vim.fs.root(fname, { "project.godot" })
+end
+gdscript.on_attach = function(client, bufnr)
+  setup_format_on_save(client, bufnr)
+end
+vim.lsp.enable("gdscript")
 
 -- Custom Biome Lint command
 local function run_biome_lint()
