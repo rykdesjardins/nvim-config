@@ -9,6 +9,40 @@
 vim.g.mapleader = "#"
 vim.opt.clipboard = "unnamedplus"
 
+-- Workaround for Neovim 0.13-dev Treesitter bug:
+-- Some parsers (like markdown) might pass TSTree or other non-node objects
+-- where a TSNode is expected, causing a crash in get_range.
+local ts = vim.treesitter
+if ts and ts.get_range then
+  local orig_get_range = ts.get_range
+  ts.get_range = function(node, ...)
+    if type(node) ~= 'userdata' or not node.range then
+      if type(node) == 'userdata' and node.root then
+        node = node:root()
+      else
+        return { 0, 0, 0, 0, 0, 0 }
+      end
+    end
+    return orig_get_range(node, ...)
+  end
+end
+
+-- Also patch LanguageTree if possible
+local ok_lt, lt = pcall(require, 'vim.treesitter.languagetree')
+if ok_lt and lt.set_included_regions then
+  local orig_set_included_regions = lt.set_included_regions
+  lt.set_included_regions = function(self, new_regions)
+    for _, region in ipairs(new_regions) do
+      for i, range in ipairs(region) do
+        if type(range) == 'userdata' and not range.range and range.root then
+          region[i] = range:root()
+        end
+      end
+    end
+    return orig_set_included_regions(self, new_regions)
+  end
+end
+
 if vim.g.neovide then
   vim.o.guifont = "Comic Mono:h11"
   vim.g.neovide_padding_top = 0
@@ -206,7 +240,11 @@ require("lazy").setup({
           "rust",
           "c_sharp",
           "gdscript",
+          "markdown",
+          "markdown_inline",
+          "query",
         },
+        auto_install = true,
         highlight = {
           enable = true,
           additional_vim_regex_highlighting = false,
