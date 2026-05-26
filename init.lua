@@ -9,6 +9,9 @@
 vim.g.mapleader = "#"
 vim.opt.clipboard = "unnamedplus"
 
+-- Ensure site directory is in runtimepath for Treesitter
+vim.opt.rtp:append("/home/ryk/.local/share/nvim/site")
+
 -- Workaround for Neovim 0.13-dev Treesitter bug:
 -- Some parsers (like markdown) might pass TSTree or other non-node objects
 -- where a TSNode is expected, causing a crash in get_range.
@@ -225,7 +228,7 @@ require("lazy").setup({
     "nvim-treesitter/nvim-treesitter",
     build = ":TSUpdate",
     config = function()
-      require("nvim-treesitter.configs").setup({
+      require("nvim-treesitter").setup({
         ensure_installed = {
           "javascript",
           "typescript",
@@ -294,33 +297,34 @@ require("lazy").setup({
   },
 
   {
-    "NickvanDyke/opencode.nvim",
-    dependencies = {
-      -- Recommended for `ask()` and `select()`.
-      -- Required for `snacks` provider.
-      ---@module 'snacks' <- Loads `snacks.nvim` types for configuration intellisense.
-      { "folke/snacks.nvim", opts = { 
-        input = {}, 
-        picker = {
+    "folke/snacks.nvim",
+    priority = 1000,
+    lazy = false,
+    opts = {
+      input = {},
+      picker = {
+        layout = {
+          preset = "default",
           layout = {
-            preset = "default",
-            layout = {
-              width = 0.9,
-              height = 0.9,
+            width = 0.9,
+            height = 0.9,
+          },
+        },
+        win = {
+          input = {
+            keys = {
+              ["<Tab>"] = { "list_down", mode = { "i", "n" } },
+              ["<S-Tab>"] = { "list_up", mode = { "i", "n" } },
             },
           },
-          win = {
-            input = {
-              keys = {
-                ["<Tab>"] = { "list_down", mode = { "i", "n" } },
-                ["<S-Tab>"] = { "list_up", mode = { "i", "n" } },
-              },
-            },
-          },
-        }, 
-        terminal = {} 
-      } },
-    },
+        },
+      },
+      terminal = {}
+    }
+  },
+
+  {
+    "NickvanDyke/opencode.nvim",
     config = function()
       ---@type opencode.Opts
       vim.g.opencode_opts = {
@@ -346,6 +350,8 @@ require("lazy").setup({
       vim.keymap.set("n", "-", "<C-x>", { desc = "Decrement", noremap = true })
     end,
   }
+}, {
+  rocks = { enabled = false }
 })
 
 local cmp = require("cmp")
